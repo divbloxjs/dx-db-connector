@@ -114,14 +114,14 @@ class DivbloxDatabaseConnector {
         let query_result = {};
         try {
             query_result = await database.query(query_str);
-        } catch ( err ) {
+        } catch (error) {
             // handle the error
-            query_result = {"error":err};
+            query_result = {"error":error};
         } finally {
             try {
                 await database.close();
-            } catch (err) {
-                query_result = {"error":err};
+            } catch (error) {
+                query_result = {"error":error};
             }
         }
         return query_result;
@@ -150,9 +150,9 @@ class DivbloxDatabaseConnector {
                 }
                 query_result = temp_data;
             } );
-        } catch ( err ) {
+        } catch (error) {
             // handle error
-            query_result = {"error":err};
+            query_result = {"error":error};
         }
         return query_result;
     }
@@ -172,9 +172,9 @@ class DivbloxDatabaseConnector {
             await database.beginTransaction();
             await callback();
             await database.commit();
-        } catch (err) {
+        } catch (error) {
             await database.rollback();
-            throw err;
+            throw error;
         } finally {
             await database.close();
         }
