@@ -6,7 +6,8 @@ const util = require('util');
  */
 class DivbloxDatabaseConnector {
     /**
-     * Takes the config array and sets up the relevant connection information for later use
+     * Takes the config array (example of which can be seen in test.js) and sets up the relevant connection information
+     * for later use
      * @param database_config_array This is defined in the dxconfig.json file
      */
     constructor(database_config_array = {}) {
