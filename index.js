@@ -29,7 +29,7 @@ class DivbloxDatabaseConnector {
             await this.checkDBConnection();
             this.is_init_complete = true;
         } catch (error) {
-            console.log("Error checking db connection: "+error);
+            this.error_info.push("Error checking db connection: "+error);
         }
     }
 
@@ -88,7 +88,7 @@ class DivbloxDatabaseConnector {
                 }
             };
         } catch (error) {
-            console.log(error);
+            this.error_info.push(error);
             return null;
         }
 
@@ -165,6 +165,7 @@ class DivbloxDatabaseConnector {
      */
     async queryWithTransaction(database, callback) {
         if (database === null) {
+            this.error_info.push("Tried to call queryWithTransaction, but database was NULL");
             return null;
         }
         try {
