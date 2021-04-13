@@ -32,6 +32,10 @@ class DivbloxDatabaseConnector {
         }
     }
 
+    /**
+     * Validates whether the init function managed to complete and pushes an error message to the error array if not
+     * @returns {boolean} true if validated, false if not
+     */
     validateInitComplete() {
         if (!this.is_init_complete) {
             this.error_info.push("Database connector init not completed. Cannot execute query. " +
