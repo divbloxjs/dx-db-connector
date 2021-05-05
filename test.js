@@ -1,6 +1,6 @@
 const db = require("./index");
-const db_config_default = {
-    "environment_array":{
+const dbConfigDefault = {
+    "environmentArray":{
         "development":{
             "modules": {
                 "main": {
@@ -28,14 +28,14 @@ const db_config_default = {
     }
 };
 async function doTest() {
-    const database_connector = new db(db_config_default["environment_array"]["development"]["modules"]);
-    await database_connector.init();
+    const databaseConnector = new db(dbConfigDefault["environmentArray"]["development"]["modules"]);
+    await databaseConnector.init();
     console.log("Querying * from table 'test'");
-    const query_result = await database_connector.queryDB("SELECT * FROM `test`","main");
-    if (query_result === null) {
-        console.error("Error while querying: "+JSON.stringify(database_connector.getError(),null,2));
+    const queryResult = await databaseConnector.queryDB("SELECT * FROM `test`","main");
+    if (queryResult === null) {
+        console.error("Error while querying: "+JSON.stringify(databaseConnector.getError(),null,2));
     } else {
-        console.dir(query_result);
+        console.dir(queryResult);
     }
 }
 doTest();
