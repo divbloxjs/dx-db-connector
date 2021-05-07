@@ -8,14 +8,14 @@ class DivbloxDatabaseConnector {
     /**
      * Takes the config array (example of which can be seen in test.js) and sets up the relevant connection information
      * for later use
-     * @param databaseConfigArray This is defined in the dxconfig.json file
+     * @param {{}} databaseConfig This is defined in the dxconfig.json file
      */
-    constructor(databaseConfigArray = {}) {
+    constructor(databaseConfig = {}) {
         this.databaseConfig = {};
         this.errorInfo = [];
-        this.moduleArray = Object.keys(databaseConfigArray);
+        this.moduleArray = Object.keys(databaseConfig);
         for (const moduleName of this.moduleArray) {
-            this.databaseConfig[moduleName] = databaseConfigArray[moduleName];
+            this.databaseConfig[moduleName] = databaseConfig[moduleName];
         }
         this.isInitComplete = false;
     }
@@ -56,12 +56,12 @@ class DivbloxDatabaseConnector {
 
     /**
      * Connect to a configured database, based on the provided module name
-     * @param moduleName The name of the module, corresponding to the module defined in dxconfig.json
+     * @param {string} moduleName The name of the module, corresponding to the module defined in dxconfig.json
      * @returns {null|{rollback(): any, beginTransaction(): any, query(*=, *=): any, commit(): any, close(): any}|*}
      */
-    connectDB(moduleName = null) {
-        if (moduleName === null) {
-            this.errorInfo.push("Invalid module name NULL provided");
+    connectDB(moduleName) {
+        if (typeof moduleName === undefined) {
+            this.errorInfo.push("Invalid module name provided");
             return null;
         }
         try {
@@ -96,13 +96,18 @@ class DivbloxDatabaseConnector {
 
     /**
      * Executes a single query on the configured database, based on the provided module name
-     * @param query The query to execute
-     * @param moduleName The name of the module, corresponding to the module defined in dxconfig.json
+     * @param {string} query The query to execute
+     * @param {string} moduleName The name of the module, corresponding to the module defined in dxconfig.json
+     * @param {[]} values Any values to insert into placeholders in sql. If not provided, it is assumed that the query
+     * can execute as is
      * @returns {Promise<{}|null>} Returns null when an error occurs. Call getError() for more information
      */
-    async queryDB(query = null,moduleName = null) {
-        if (query === null) {
-            this.errorInfo.push("Invalid query NULL provided");
+    async queryDB(query, moduleName, values) {
+        if ((typeof query === undefined)) {
+            this.errorInfo.push("Invalid query provided");
+        }
+        if ((typeof moduleName === undefined)) {
+            this.errorInfo.push("Invalid module name provided");
         }
         if (!this.validateInitComplete()) {
             return null;
@@ -113,7 +118,7 @@ class DivbloxDatabaseConnector {
         }
         let queryResult = {};
         try {
-            queryResult = await database.query(query);
+            queryResult = await database.query(query, values);
         } catch (error) {
             // handle the error
             queryResult = {"error":error};
@@ -129,8 +134,10 @@ class DivbloxDatabaseConnector {
 
     /**
      * A wrapper for queryDB which takes an array of queries to execute
-     * @param queryArray The array of queries to execute
-     * @param moduleName The name of the module, corresponding to the module defined in dxconfig.json
+     * @param {[{sql:string,values:[]}]} queryArray The array of queries to execute. Each query is an object
+     * containing the sql and possible placeholder values to process. If values is not provided, it is assumed that the
+     * query can execute as is
+     * @param {string} moduleName The name of the module, corresponding to the module defined in dxconfig.json
      * @returns {Promise<{}|null>} Returns null when an error occurs. Call getError() for more information
      */
     async queryDBMultiple(queryArray = [], moduleName = null) {
@@ -146,12 +153,11 @@ class DivbloxDatabaseConnector {
             await queryWithTransaction(database, async () => {
                 let tempData = [];
                 for (const query of queryArray) {
-                    tempData.push(await database.query(query));
+                    tempData.push(await database.query(query.sql, query.values));
                 }
                 queryResult = tempData;
             } );
         } catch (error) {
-            // handle error
             queryResult = {"error":error};
         }
         return queryResult;
@@ -159,8 +165,8 @@ class DivbloxDatabaseConnector {
 
     /**
      * Allows for executing a group of queries with potential rollback support
-     * @param database The local database instance
-     * @param callback The function called on completion
+     * @param {*} database The local database instance
+     * @param {function} callback The function called on completion
      * @returns {Promise<null>} Returns null when an error occurs. Call getError() for more information
      */
     async queryWithTransaction(database, callback) {
