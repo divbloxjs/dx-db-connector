@@ -8,7 +8,28 @@ class DivbloxDatabaseConnector {
     /**
      * Takes the config array (example of which can be seen in test.js) and sets up the relevant connection information
      * for later use
-     * @param {{}} databaseConfig This is defined in the dxconfig.json file
+     * @param {{}} databaseConfig The database configuration object for each module. Each module is a separate
+     * database. An example is shown below:
+     * "mainModule": {
+                    "host": "localhost",
+                    "user": "dbuser",
+                    "password": "123",
+                    "database": "local_dx_db",
+                    "port": 3306,
+                    "ssl": false
+                },
+        "secondaryModule": {
+                    "host": "localhost",
+                    "user": "dbuser",
+                    "password": "123",
+                    "database": "local_dx_db",
+                    "port": 3306,
+                    "ssl": {
+                        ca: "Contents of __dirname + '/certs/ca.pem'",
+                        key: "Contents of __dirname + '/certs/client-key.pem'",
+                        cert: "Contents of __dirname + '/certs/client-cert.pem'"
+                    }
+                },
      */
     constructor(databaseConfig = {}) {
         this.databaseConfig = {};
