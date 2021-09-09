@@ -8,7 +8,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/JohanGriesel/dx-db-connector.git"
+    "url": "git+https://github.com/divbloxjs/dx-db-connector.git"
   },
   "keywords": [
     "divblox",
@@ -17,9 +17,9 @@
   "author": "Johan Griesel, johan@stratusolve.com (Stratusolve (Pty)",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/JohanGriesel/dx-db-connector/issues"
+    "url": "https://github.com/divbloxjs/dx-db-connector/issues"
   },
-  "homepage": "https://github.com/JohanGriesel/dx-db-connector#readme",
+  "homepage": "https://github.com/divbloxjs/dx-db-connector#readme",
   "dependencies": {
     "mysql": "^2.18.1"
   }
