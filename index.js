@@ -38,7 +38,6 @@ class DivbloxDatabaseConnector {
         for (const moduleName of this.moduleArray) {
             this.databaseConfig[moduleName] = databaseConfig[moduleName];
         }
-        this.isInitComplete = false;
     }
 
     /**
@@ -48,22 +47,9 @@ class DivbloxDatabaseConnector {
     async init() {
         try {
             await this.checkDBConnection();
-            this.isInitComplete = true;
         } catch (error) {
             this.errorInfo.push("Error checking db connection: "+error);
         }
-    }
-
-    /**
-     * Validates whether the init function managed to complete and pushes an error message to the error array if not
-     * @returns {boolean} true if validated, false if not
-     */
-    validateInitComplete() {
-        if (!this.isInitComplete) {
-            this.errorInfo.push("Database connector init not completed. Cannot execute query. " +
-                "Please run init() after instantiating the database connector");
-        }
-        return this.isInitComplete;
     }
 
     /**
@@ -130,9 +116,7 @@ class DivbloxDatabaseConnector {
         if ((typeof moduleName === undefined)) {
             this.errorInfo.push("Invalid module name provided");
         }
-        if (!this.validateInitComplete()) {
-            return null;
-        }
+
         const database = this.connectDB(moduleName);
         if (database === null) {
             return null;
@@ -162,9 +146,6 @@ class DivbloxDatabaseConnector {
      * @returns {Promise<{}|null>} Returns null when an error occurs. Call getError() for more information
      */
     async queryDBMultiple(queryArray = [], moduleName = null) {
-        if (!this.validateInitComplete()) {
-            return null;
-        }
         const database = this.connectDB(moduleName);
         if (database === null) {
             return null;
