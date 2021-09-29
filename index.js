@@ -18,7 +18,7 @@ class DivbloxDatabaseConnector {
                     "port": 3306,
                     "ssl": false
                 },
-        "secondaryModule": {
+     "secondaryModule": {
                     "host": "localhost",
                     "user": "dbuser",
                     "password": "123",
@@ -33,11 +33,23 @@ class DivbloxDatabaseConnector {
      */
     constructor(databaseConfig = {}) {
         this.databaseConfig = {};
+        this.connectionPools = {};
         this.errorInfo = [];
         this.moduleArray = Object.keys(databaseConfig);
         for (const moduleName of this.moduleArray) {
             this.databaseConfig[moduleName] = databaseConfig[moduleName];
+            this.connectionPools[moduleName] = mysql.createPool(databaseConfig[moduleName]);
         }
+    }
+
+    /**
+     * Returns a connection from the connection pool
+     * @param {string} moduleName The name of the module, corresponding to the module defined in dxconfig.json
+     * @return {Promise<*>}
+     */
+    async getPoolConnection(moduleName) {
+        return util.promisify(this.connectionPools[moduleName].getConnection)
+            .call(this.connectionPools[moduleName]);
     }
 
     /**
@@ -66,15 +78,15 @@ class DivbloxDatabaseConnector {
      * @param {string} moduleName The name of the module, corresponding to the module defined in dxconfig.json
      * @returns {null|{rollback(): any, beginTransaction(): any, query(*=, *=): any, commit(): any, close(): any}|*}
      */
-    connectDB(moduleName) {
+    async connectDB(moduleName) {
         if (typeof moduleName === undefined) {
             this.errorInfo.push("Invalid module name provided");
             return null;
         }
         try {
-            const connection = mysql.createConnection(this.databaseConfig[moduleName]);
+            const connection = await this.getPoolConnection(moduleName);
             return {
-                query( sql, args ) {
+                query(sql, args) {
                     return util.promisify(connection.query)
                         .call(connection, sql, args);
                 },
@@ -91,7 +103,7 @@ class DivbloxDatabaseConnector {
                         .call(connection);
                 },
                 close() {
-                    return util.promisify(connection.end).call(connection);
+                    return connection.release();
                 }
             };
         } catch (error) {
@@ -117,7 +129,7 @@ class DivbloxDatabaseConnector {
             this.errorInfo.push("Invalid module name provided");
         }
 
-        const database = this.connectDB(moduleName);
+        const database = await this.connectDB(moduleName);
         if (database === null) {
             return null;
         }
@@ -129,7 +141,7 @@ class DivbloxDatabaseConnector {
             queryResult = {"error":error};
         } finally {
             try {
-                await database.close();
+                database.close();
             } catch (error) {
                 queryResult = {"error":error};
             }
@@ -146,7 +158,7 @@ class DivbloxDatabaseConnector {
      * @returns {Promise<{}|null>} Returns null when an error occurs. Call getError() for more information
      */
     async queryDBMultiple(queryArray = [], moduleName = null) {
-        const database = this.connectDB(moduleName);
+        const database = await this.connectDB(moduleName);
         if (database === null) {
             return null;
         }
@@ -184,7 +196,7 @@ class DivbloxDatabaseConnector {
             await database.rollback();
             throw error;
         } finally {
-            await database.close();
+            database.close();
         }
     }
 
@@ -195,11 +207,11 @@ class DivbloxDatabaseConnector {
     async checkDBConnection() {
         for (const moduleName of this.moduleArray) {
             try {
-                const database = this.connectDB(moduleName);
+                const database = await this.connectDB(moduleName);
                 if (database === null) {
                     throw new Error("Error connecting to database: "+JSON.stringify(this.getError(),null,2));
                 }
-                await database.close();
+                database.close();
             } catch (error) {
                 throw new Error("Error connecting to database: "+error);
             }
@@ -209,5 +221,3 @@ class DivbloxDatabaseConnector {
 }
 
 module.exports = DivbloxDatabaseConnector;
-
-
