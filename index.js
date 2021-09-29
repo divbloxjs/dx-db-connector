@@ -43,16 +43,6 @@ class DivbloxDatabaseConnector {
     }
 
     /**
-     * Returns a connection from the connection pool
-     * @param {string} moduleName The name of the module, corresponding to the module defined in dxconfig.json
-     * @return {Promise<*>}
-     */
-    async getPoolConnection(moduleName) {
-        return util.promisify(this.connectionPools[moduleName].getConnection)
-            .call(this.connectionPools[moduleName]);
-    }
-
-    /**
      * Does all the required work to ensure that database communication is working correctly before continuing
      * @returns {Promise<void>}
      */
@@ -71,6 +61,16 @@ class DivbloxDatabaseConnector {
      */
     getError() {
         return this.errorInfo;
+    }
+
+    /**
+     * Returns a connection from the connection pool
+     * @param {string} moduleName The name of the module, corresponding to the module defined in dxconfig.json
+     * @return {Promise<*>}
+     */
+    async getPoolConnection(moduleName) {
+        return util.promisify(this.connectionPools[moduleName].getConnection)
+            .call(this.connectionPools[moduleName]);
     }
 
     /**
