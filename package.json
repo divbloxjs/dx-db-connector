@@ -1,26 +1,26 @@
 {
-  "name": "dx-db-connector",
-  "version": "1.0.0",
-  "description": "A database connector class that simplifies connections and queries to a database for nodejs apps",
-  "main": "index.js",
-  "scripts": {
-    "test": "node test.js"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/divbloxjs/dx-db-connector.git"
-  },
-  "keywords": [
-    "divblox",
-    "dx-db-connector"
-  ],
-  "author": "Johan Griesel, johan@divblox.com - Divblox (Pty) Ltd",
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/divbloxjs/dx-db-connector/issues"
-  },
-  "homepage": "https://github.com/divbloxjs/dx-db-connector#readme",
-  "dependencies": {
-    "mysql": "^2.18.1"
-  }
+    "name": "dx-db-connector",
+    "version": "1.0.1",
+    "description": "A database connector class that simplifies connections and queries to a database for nodejs apps",
+    "main": "index.js",
+    "scripts": {
+        "test": "node test.js"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/divbloxjs/dx-db-connector.git"
+    },
+    "keywords": [
+        "divblox",
+        "dx-db-connector"
+    ],
+    "author": "Johan Griesel, johan@divblox.com - Divblox (Pty) Ltd",
+    "license": "MIT",
+    "bugs": {
+        "url": "https://github.com/divbloxjs/dx-db-connector/issues"
+    },
+    "homepage": "https://github.com/divbloxjs/dx-db-connector#readme",
+    "dependencies": {
+        "mysql": "^2.18.1"
+    }
 }
