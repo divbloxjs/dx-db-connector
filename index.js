@@ -1,5 +1,5 @@
-const mysql = require('mysql');
-const util = require('util');
+const mysql = require("mysql");
+const util = require("util");
 
 /**
  * Responsible for connecting to the configured database and execute queries
@@ -50,7 +50,7 @@ class DivbloxDatabaseConnector {
         try {
             await this.checkDBConnection();
         } catch (error) {
-            this.errorInfo.push("Error checking db connection: "+error);
+            this.errorInfo.push("Error checking db connection: " + error);
         }
     }
 
@@ -69,8 +69,7 @@ class DivbloxDatabaseConnector {
      * @return {Promise<*>}
      */
     async getPoolConnection(moduleName) {
-        return util.promisify(this.connectionPools[moduleName].getConnection)
-            .call(this.connectionPools[moduleName]);
+        return util.promisify(this.connectionPools[moduleName].getConnection).call(this.connectionPools[moduleName]);
     }
 
     /**
@@ -79,7 +78,7 @@ class DivbloxDatabaseConnector {
      * @returns {null|{rollback(): any, beginTransaction(): any, query(*=, *=): any, commit(): any, close(): any}|*}
      */
     async connectDB(moduleName) {
-        if (typeof moduleName === undefined) {
+        if (typeof moduleName === "undefined") {
             this.errorInfo.push("Invalid module name provided");
             return null;
         }
@@ -87,30 +86,101 @@ class DivbloxDatabaseConnector {
             const connection = await this.getPoolConnection(moduleName);
             return {
                 query(sql, args) {
-                    return util.promisify(connection.query)
-                        .call(connection, sql, args);
+                    return util.promisify(connection.query).call(connection, sql, args);
                 },
                 beginTransaction() {
-                    return util.promisify(connection.beginTransaction)
-                        .call(connection);
+                    return util.promisify(connection.beginTransaction).call(connection);
                 },
                 commit() {
-                    return util.promisify(connection.commit)
-                        .call(connection);
+                    return util.promisify(connection.commit).call(connection);
                 },
                 rollback() {
-                    return util.promisify(connection.rollback)
-                        .call(connection);
+                    return util.promisify(connection.rollback).call(connection);
                 },
                 close() {
                     return connection.release();
-                }
+                },
             };
         } catch (error) {
             this.errorInfo.push(error);
             return null;
         }
+    }
 
+    /**
+     * Starts a new transaction on the database and returns the database connection
+     * @param {string} moduleName The name of the module, corresponding to the module defined in dxconfig.json
+     * @returns {Promise<{}|null>} Returns null if a database transaction could not be started
+     */
+    async beginTransaction(moduleName) {
+        const database = await this.connectDB(moduleName);
+
+        if (database === null) {
+            this.errorInfo.push("Could not connect to database");
+            return null;
+        }
+
+        try {
+            await database.beginTransaction();
+        } catch (error) {
+            await database.close();
+
+            this.errorInfo.push("Error connecting to database: " + error);
+
+            return null;
+        }
+
+        return database;
+    }
+
+    /**
+     * Commits a transaction to the database
+     * @param {*} transaction The transaction object, which is basically just a connection to the database
+     */
+    async commitTransaction(transaction = null) {
+        if (transaction === null) {
+            this.errorInfo.push("Could not commit transaction. Invalid connection provided");
+            return false;
+        }
+
+        try {
+            await transaction.commit();
+        } catch (error) {
+            await transaction.rollback();
+
+            this.errorInfo.push("Error committing transaction: " + error);
+
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Rolls back a transaction
+     * @param {*} transaction The transaction object, which is basically just a connection to the database
+     */
+    async rollBackTransaction(transaction = null) {
+        if (transaction === null) {
+            this.errorInfo.push("Could not roll back transaction. Invalid connection provided");
+            return false;
+        }
+
+        await transaction.rollback();
+        return true;
+    }
+
+    /**
+     * Closes a transaction
+     * @param {*} transaction The transaction object, which is basically just a connection to the database
+     */
+    async closeTransaction(transaction = null) {
+        if (transaction === null) {
+            this.errorInfo.push("Could not close transaction. Invalid connection provided");
+            return false;
+        }
+
+        await transaction.close();
+        return true;
     }
 
     /**
@@ -118,32 +188,39 @@ class DivbloxDatabaseConnector {
      * @param {string} query The query to execute
      * @param {string} moduleName The name of the module, corresponding to the module defined in dxconfig.json
      * @param {[]} values Any values to insert into placeholders in sql. If not provided, it is assumed that the query
+     * @param {{}} transaction An optional transaction object that contains the database connection that must be used for the query
      * can execute as is
      * @returns {Promise<{}|null>} Returns null when an error occurs. Call getError() for more information
      */
-    async queryDB(query, moduleName, values) {
-        if ((typeof query === undefined)) {
+    async queryDB(query, moduleName, values, transaction) {
+        if (typeof query === "undefined") {
             this.errorInfo.push("Invalid query provided");
         }
-        if ((typeof moduleName === undefined)) {
+        if (typeof moduleName === "undefined") {
             this.errorInfo.push("Invalid module name provided");
         }
+        const withTransaction = transaction !== undefined && transaction !== null;
 
-        const database = await this.connectDB(moduleName);
+        const database = withTransaction ? transaction : await this.connectDB(moduleName);
+
         if (database === null) {
             return null;
         }
+
         let queryResult = {};
+
         try {
             queryResult = await database.query(query, values);
         } catch (error) {
             // handle the error
-            queryResult = {"error":error};
+            queryResult = { error: error };
         } finally {
-            try {
-                database.close();
-            } catch (error) {
-                queryResult = {"error":error};
+            if (!withTransaction) {
+                try {
+                    database.close();
+                } catch (error) {
+                    queryResult = { error: error };
+                }
             }
         }
         return queryResult;
@@ -170,9 +247,9 @@ class DivbloxDatabaseConnector {
                     tempData.push(await database.query(query.sql, query.values));
                 }
                 queryResult = tempData;
-            } );
+            });
         } catch (error) {
-            queryResult = {"error":error};
+            queryResult = { error: error };
         }
         return queryResult;
     }
@@ -209,11 +286,11 @@ class DivbloxDatabaseConnector {
             try {
                 const database = await this.connectDB(moduleName);
                 if (database === null) {
-                    throw new Error("Error connecting to database: "+JSON.stringify(this.getError(),null,2));
+                    throw new Error("Error connecting to database: " + JSON.stringify(this.getError(), null, 2));
                 }
                 database.close();
             } catch (error) {
-                throw new Error("Error connecting to database: "+error);
+                throw new Error("Error connecting to database: " + error);
             }
         }
         return true;
