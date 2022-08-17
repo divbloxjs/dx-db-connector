@@ -136,8 +136,9 @@ class DivbloxDatabaseConnector {
     /**
      * Commits a transaction to the database
      * @param {*} transaction The transaction object, which is basically just a connection to the database
+     * @param {boolean} closeTransaction If set to false, the connection is not released after the commit
      */
-    async commitTransaction(transaction = null) {
+    async commitTransaction(transaction = null, closeTransaction = true) {
         if (transaction === null) {
             this.errorInfo.push("Could not commit transaction. Invalid connection provided");
             return false;
@@ -151,6 +152,10 @@ class DivbloxDatabaseConnector {
             this.errorInfo.push("Error committing transaction: " + error);
 
             return false;
+        } finally {
+            if (closeTransaction) {
+                await this.closeTransaction(transaction);
+            }
         }
         return true;
     }
@@ -158,14 +163,20 @@ class DivbloxDatabaseConnector {
     /**
      * Rolls back a transaction
      * @param {*} transaction The transaction object, which is basically just a connection to the database
+     * @param {boolean} closeTransaction If set to false, the connection is not released after the rollback
      */
-    async rollBackTransaction(transaction = null) {
+    async rollBackTransaction(transaction = null, closeTransaction = true) {
         if (transaction === null) {
             this.errorInfo.push("Could not roll back transaction. Invalid connection provided");
             return false;
         }
 
         await transaction.rollback();
+
+        if (closeTransaction) {
+            await this.closeTransaction(transaction);
+        }
+
         return true;
     }
 
