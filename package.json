@@ -1,6 +1,6 @@
 {
     "name": "dx-db-connector",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "description": "A database connector class that simplifies connections and queries to a database for nodejs apps",
     "main": "index.js",
     "scripts": {
