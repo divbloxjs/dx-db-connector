@@ -196,7 +196,7 @@ class DivbloxDatabaseConnector {
 
     /**
      * Executes a single query on the configured database, based on the provided module name
-     * @param {string} query The query to execute
+     * @param {string|{sql: string, nestTables: string|boolean}} query The query to execute. Can also pass an options object as per nodejs-mysql
      * @param {string} moduleName The name of the module, corresponding to the module defined in dxconfig.json
      * @param {[]} values Any values to insert into placeholders in sql. If not provided, it is assumed that the query can execute as is
      * @param {{}} transaction An optional transaction object that contains the database connection that must be used for the query
