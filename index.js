@@ -1,5 +1,6 @@
 const mysql = require("mysql");
 const util = require("util");
+const dxUtils = require("dx-utilities");
 
 /**
  * Responsible for connecting to the configured database and execute queries
@@ -18,7 +19,7 @@ class DivbloxDatabaseConnector {
                     "port": 3306,
                     "ssl": false
                 },
-     "secondaryModule": {
+      "secondaryModule": {
                     "host": "localhost",
                     "user": "dbuser",
                     "password": "123",
@@ -44,23 +45,16 @@ class DivbloxDatabaseConnector {
 
     /**
      * Does all the required work to ensure that database communication is working correctly before continuing
-     * @returns {Promise<void>}
+     * @returns {Promise<boolean>}
      */
     async init() {
-        try {
-            await this.checkDBConnection();
-        } catch (error) {
-            this.errorInfo.push("Error checking db connection: " + error);
-        }
-    }
+        const dbConnectionSuccess = await this.checkDBConnection();
 
-    /**
-     * Whenever Divblox encounters an error, the errorInfo array is populated with details about the error. This
-     * function simply returns that errorInfo array for debugging purposes
-     * @returns {[]}
-     */
-    getError() {
-        return this.errorInfo;
+        if (!dbConnectionSuccess) {
+            this.printLastError();
+        }
+
+        return dbConnectionSuccess;
     }
 
     /**
@@ -79,7 +73,7 @@ class DivbloxDatabaseConnector {
      */
     async connectDB(moduleName) {
         if (typeof moduleName === "undefined") {
-            this.errorInfo.push("Invalid module name provided");
+            this.populateError("Invalid module name provided");
             return null;
         }
         try {
@@ -102,7 +96,7 @@ class DivbloxDatabaseConnector {
                 },
             };
         } catch (error) {
-            this.errorInfo.push(error);
+            this.populateError("Could not interact with the database", error);
             return null;
         }
     }
@@ -116,17 +110,16 @@ class DivbloxDatabaseConnector {
         const database = await this.connectDB(moduleName);
 
         if (database === null) {
-            this.errorInfo.push("Could not connect to database");
+            this.populateError("Could not connect to database", this.getLastError());
             return null;
         }
 
         try {
             await database.beginTransaction();
         } catch (error) {
+            this.populateError("Error beginning transaction", error);
+
             await database.close();
-
-            this.errorInfo.push("Error connecting to database: " + error);
-
             return null;
         }
 
@@ -140,24 +133,37 @@ class DivbloxDatabaseConnector {
      */
     async commitTransaction(transaction = null, closeTransaction = true) {
         if (transaction === null) {
-            this.errorInfo.push("Could not commit transaction. Invalid connection provided");
+            this.populateError("Could not commit transaction. Invalid connection provided");
             return false;
+        }
+
+        let commitSuccess = true;
+        try {
+            commitSuccess = await transaction.commit();
+        } catch (error) {
+            commitSuccess = false;
+            this.populateError("Error committing transaction", error);
+
+            try {
+                await transaction.rollback();
+            } catch (error) {
+                closeTransaction = true;
+                this.populateError("Error rolling transaction back", error);
+            }
+        }
+
+        if (!closeTransaction) {
+            return commitSuccess;
         }
 
         try {
-            await transaction.commit();
+            commitSuccess &&= await this.closeTransaction(transaction);
         } catch (error) {
-            await transaction.rollback();
-
-            this.errorInfo.push("Error committing transaction: " + error);
-
-            return false;
-        } finally {
-            if (closeTransaction) {
-                await this.closeTransaction(transaction);
-            }
+            this.populateError("Could not close transaction", error);
+            commitSuccess = false;
         }
-        return true;
+
+        return commitSuccess;
     }
 
     /**
@@ -167,17 +173,31 @@ class DivbloxDatabaseConnector {
      */
     async rollBackTransaction(transaction = null, closeTransaction = true) {
         if (transaction === null) {
-            this.errorInfo.push("Could not roll back transaction. Invalid connection provided");
+            this.populateError("Could not roll back transaction. Invalid connection provided");
             return false;
         }
 
-        await transaction.rollback();
-
-        if (closeTransaction) {
-            await this.closeTransaction(transaction);
+        let rollBackSuccess = true;
+        try {
+            rollBackSuccess = await transaction.rollback();
+        } catch (error) {
+            rollBackSuccess = false;
+            closeTransaction = true;
+            this.populateError("Error rolling transaction back", error);
         }
 
-        return true;
+        if (!closeTransaction) {
+            return rollBackSuccess;
+        }
+
+        try {
+            rollBackSuccess &&= await this.closeTransaction(transaction);
+        } catch (error) {
+            this.populateError("Could not close transaction", error);
+            rollBackSuccess = false;
+        }
+
+        return rollBackSuccess;
     }
 
     /**
@@ -186,11 +206,17 @@ class DivbloxDatabaseConnector {
      */
     async closeTransaction(transaction = null) {
         if (transaction === null) {
-            this.errorInfo.push("Could not close transaction. Invalid connection provided");
+            this.populateError("Could not close transaction. Invalid connection provided");
             return false;
         }
 
-        await transaction.close();
+        try {
+            await transaction.close();
+        } catch (error) {
+            this.populateError("Could not close transaction", error);
+            return false;
+        }
+
         return true;
     }
 
@@ -204,10 +230,12 @@ class DivbloxDatabaseConnector {
      */
     async queryDB(query, moduleName, values, transaction) {
         if (typeof query === "undefined") {
-            this.errorInfo.push("Invalid query provided");
+            this.populateError("Invalid query provided");
+            return null;
         }
         if (typeof moduleName === "undefined") {
-            this.errorInfo.push("Invalid module name provided");
+            this.populateError("Invalid module name provided");
+            return null;
         }
         const withTransaction = transaction !== undefined && transaction !== null;
 
@@ -217,22 +245,23 @@ class DivbloxDatabaseConnector {
             return null;
         }
 
-        let queryResult = {};
+        let queryResult = null;
 
         try {
             queryResult = await database.query(query, values);
         } catch (error) {
-            // handle the error
-            queryResult = { error: error };
-        } finally {
-            if (!withTransaction) {
-                try {
-                    database.close();
-                } catch (error) {
-                    queryResult = { error: error };
-                }
+            queryResult = null;
+            this.populateError("Could not query the database", error);
+        }
+
+        if (!withTransaction) {
+            try {
+                await database.close();
+            } catch (error) {
+                this.populateError("Could not close the database", error);
             }
         }
+
         return queryResult;
     }
 
@@ -249,18 +278,22 @@ class DivbloxDatabaseConnector {
         if (database === null) {
             return null;
         }
-        let queryResult = {};
+
+        let queryResult = null;
         try {
-            await queryWithTransaction(database, async () => {
-                let tempData = [];
+            queryResult = await this.queryWithTransaction(database, async () => {
+                let queuedQueryResults = [];
                 for (const query of queryArray) {
-                    tempData.push(await database.query(query.sql, query.values));
+                    queuedQueryResults.push(await database.query(query.sql, query.values));
                 }
-                queryResult = tempData;
+
+                return queuedQueryResults;
             });
         } catch (error) {
-            queryResult = { error: error };
+            this.populateError("Error occurred during multi-query", error);
+            queryResult = null;
         }
+
         return queryResult;
     }
 
@@ -268,23 +301,34 @@ class DivbloxDatabaseConnector {
      * Allows for executing a group of queries with potential rollback support
      * @param {*} database The local database instance
      * @param {function} callback The function called on completion
-     * @returns {Promise<null>} Returns null when an error occurs. Call getError() for more information
+     * @returns {Promise<*|null>} Returns null when an error occurs. Call getLastError() for more information
      */
     async queryWithTransaction(database, callback) {
         if (database === null) {
-            this.errorInfo.push("Tried to call queryWithTransaction, but database was NULL");
+            this.populateError("Tried to call queryWithTransaction, but database was NULL");
             return null;
         }
+
+        let queryResult = null;
         try {
             await database.beginTransaction();
-            await callback();
+            queryResult = await callback();
             await database.commit();
         } catch (error) {
-            await database.rollback();
-            throw error;
-        } finally {
-            database.close();
+            queryResult = null;
+            this.populateError("Could not query with transaction", error);
+
+            try {
+                await database.rollback();
+            } catch (error) {
+                queryResult = null;
+                this.populateError("Could not roll back transaction", error);
+            }
         }
+
+        await database.close();
+
+        return queryResult;
     }
 
     /**
@@ -293,17 +337,136 @@ class DivbloxDatabaseConnector {
      */
     async checkDBConnection() {
         for (const moduleName of this.moduleArray) {
+            let moduleCheckSuccess = true;
             try {
                 const database = await this.connectDB(moduleName);
                 if (database === null) {
-                    throw new Error("Error connecting to database: " + JSON.stringify(this.getError(), null, 2));
+                    this.populateError("Error connecting to database", this.getLastError());
+                    moduleCheckSuccess = false;
                 }
-                database.close();
             } catch (error) {
-                throw new Error("Error connecting to database: " + error);
+                moduleCheckSuccess = false;
+                this.populateError("Error connecting to database", error);
+            }
+
+            if (!moduleCheckSuccess) {
+                return false;
             }
         }
+
         return true;
+    }
+
+    //#region Error handling
+    /**
+     * Whenever Divblox encounters an error, the errorInfo array should be populated with details about the error. This
+     * function simply returns that errorInfo array for debugging purposes
+     * @returns {[]}
+     */
+    getError() {
+        return this.errorInfo;
+    }
+
+    /**
+     * Returns the latest error that was pushed, as an error object
+     * @returns {DxBaseError|null}} The latest error
+     */
+    getLastError() {
+        let lastError = null;
+
+        if (this.errorInfo.length > 0) {
+            lastError = this.errorInfo[this.errorInfo.length - 1];
+        }
+
+        return lastError;
+    }
+
+    /**
+     * Prints to console the latest error message
+     */
+    printLastError() {
+        console.dir(this.getLastError(), { depth: null });
+    }
+
+    /**
+     * Pushes a new error object/string into the error array
+     * @param {dxErrorStack|DxBaseError|string} errorToPush An object or string containing error information
+     * @param {dxErrorStack|DxBaseError|null} errorStack An object, containing error information
+     */
+    populateError(errorToPush = "", errorStack = null) {
+        let message = "No message provided";
+        if (!errorToPush) {
+            errorToPush = message;
+        }
+
+        if (!errorStack) {
+            errorStack = errorToPush;
+        }
+
+        if (typeof errorToPush === "string") {
+            message = errorToPush;
+        } else if (
+            dxUtils.isValidObject(errorToPush) ||
+            errorToPush instanceof DxBaseError ||
+            errorToPush instanceof Error
+        ) {
+            message = errorToPush.message ? errorToPush.message : "No message provided";
+        } else {
+            this.populateError(
+                "Invalid error type provided, errors can be only of type string/Object/Error/DxBaseError"
+            );
+            return;
+        }
+
+        // Only the latest error to be of type DxBaseError
+        let newErrorStack = {
+            callerClass: errorStack.callerClass ? errorStack.callerClass : this.constructor.name,
+            message: message ? message : errorStack.message ? errorStack.message : "No message provided",
+            errorStack: errorStack.errorStack
+                ? errorStack.errorStack
+                : typeof errorStack === "string"
+                ? null
+                : errorStack,
+        };
+
+        const error = new DxBaseError(message, this.constructor.name, newErrorStack);
+
+        // Make sure to keep the deepest stackTrace
+        if (errorStack instanceof DxBaseError || errorStack instanceof Error) {
+            error.stack = errorStack.stack;
+        }
+
+        this.errorInfo.push(error);
+        return;
+    }
+
+    /**
+     * Resets the error info array
+     */
+    resetError() {
+        this.errorInfo = [];
+    }
+
+    //#endregion
+}
+
+class DxBaseError extends Error {
+    constructor(message = "", callerClass = "", errorStack = null, ...params) {
+        // Pass remaining arguments (including vendor specific ones) to parent constructor
+        super(...params);
+
+        // Maintains proper stack trace for where our error was thrown (only available on V8)
+        if (Error.captureStackTrace) {
+            Error.captureStackTrace(this, DxBaseError);
+        }
+
+        this.name = "DxBaseError";
+
+        // Custom debugging information
+        this.message = message;
+        this.callerClass = callerClass;
+        this.dateTimeOccurred = new Date();
+        this.errorStack = errorStack;
     }
 }
 
