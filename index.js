@@ -342,12 +342,11 @@ class DivbloxDatabaseConnector {
                 const database = await this.connectDB(moduleName);
                 if (database === null) {
                     this.populateError("Error connecting to database", this.getLastError());
+                    moduleCheckSuccess = false;
                 }
-                await database.close();
             } catch (error) {
                 moduleCheckSuccess = false;
                 this.populateError("Error connecting to database", error);
-                await database.close();
             }
 
             if (!moduleCheckSuccess) {
