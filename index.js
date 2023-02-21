@@ -36,6 +36,7 @@ class DivbloxDatabaseConnector {
         this.databaseConfig = {};
         this.connectionPools = {};
         this.errorInfo = [];
+        this.maxErrorLimitDefault = 50;
         this.moduleArray = Object.keys(databaseConfig);
         for (const moduleName of this.moduleArray) {
             this.databaseConfig[moduleName] = databaseConfig[moduleName];
@@ -434,6 +435,10 @@ class DivbloxDatabaseConnector {
         // Make sure to keep the deepest stackTrace
         if (errorStack instanceof DxBaseError || errorStack instanceof Error) {
             error.stack = errorStack.stack;
+        }
+
+        if (this.errorInfo.length > process.env.MAX_ERROR_LIMIT ?? this.maxErrorLimitDefault) {
+            this.errorInfo.splice(0, this.errorInfo.length - process.env.MAX_ERROR_LIMIT ?? this.maxErrorLimitDefault);
         }
 
         this.errorInfo.push(error);
