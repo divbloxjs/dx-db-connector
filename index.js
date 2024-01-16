@@ -252,7 +252,7 @@ class DivbloxDatabaseConnector {
             queryResult = await database.query(query, values);
         } catch (error) {
             queryResult = null;
-            this.populateError("Could not query the database", error);
+            this.populateError(error.sqlMessage ?? "Could not query the database", error);
         }
 
         if (!withTransaction) {
